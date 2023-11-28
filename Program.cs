@@ -41,6 +41,7 @@ public class FileConfigurationProvider : IConfigurationProvider
         File.WriteAllText(filePath, JsonConvert.SerializeObject(settings));
     }
 
+
     public string LoadSetting(string key)
     {
         if (File.Exists(filePath))
@@ -57,15 +58,30 @@ public class FileConfigurationProvider : IConfigurationProvider
 
 public class ConfigurationManagerConfigurationProvider : IConfigurationProvider
 {
+    private readonly Configuration configuration;
+
+    public ConfigurationManagerConfigurationProvider()
+    {
+        configuration = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
+    }
     public void SaveSetting(string key, string value)
     {
-        ConfigurationManager.AppSettings[key] = value;
+        if (configuration.AppSettings.Settings[key] != null)
+        {
+            configuration.AppSettings.Settings[key].Value = value;
+        }
+        else
+        {
+            configuration.AppSettings.Settings.Add(key, value);
+        }
+
+        configuration.Save(ConfigurationSaveMode.Modified);
         ConfigurationManager.RefreshSection("appSettings");
     }
 
     public string LoadSetting(string key)
     {
-        return ConfigurationManager.AppSettings[key];
+        return configuration.AppSettings.Settings[key]?.Value;
     }
 }
 
