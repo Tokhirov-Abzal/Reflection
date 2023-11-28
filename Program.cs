@@ -1,8 +1,5 @@
-﻿using System;
-using System.Configuration;
-using System.IO;
-using Newtonsoft.Json;
-
+﻿using System.Reflection;
+using Shared;
 
 [AttributeUsage(AttributeTargets.Property)]
 public class ConfigurationItemAttribute : Attribute
@@ -17,57 +14,6 @@ public class ConfigurationItemAttribute : Attribute
     }
 }
 
-
-public interface IConfigurationProvider
-{
-    void SaveSetting(string key, string value);
-    string LoadSetting(string key);
-}
-
-
-public class FileConfigurationProvider : IConfigurationProvider
-{
-    private readonly string filePath;
-
-    public FileConfigurationProvider(string filePath)
-    {
-        this.filePath = filePath;
-    }
-
-    public void SaveSetting(string key, string value)
-    {
-        var settings = File.Exists(filePath) ? JsonConvert.DeserializeObject<Dictionary<string, string>>(File.ReadAllText(filePath)) : new Dictionary<string, string>();
-        settings[key] = value;
-        File.WriteAllText(filePath, JsonConvert.SerializeObject(settings));
-    }
-
-    public string LoadSetting(string key)
-    {
-        if (File.Exists(filePath))
-        {
-            var settings = JsonConvert.DeserializeObject<Dictionary<string, string>>(File.ReadAllText(filePath));
-            if (settings.TryGetValue(key, out var value))
-            {
-                return value;
-            }
-        }
-        return null;
-    }
-}
-
-public class ConfigurationManagerConfigurationProvider : IConfigurationProvider
-{
-    public void SaveSetting(string key, string value)
-    {
-        ConfigurationManager.AppSettings[key] = value;
-        ConfigurationManager.RefreshSection("appSettings");
-    }
-
-    public string LoadSetting(string key)
-    {
-        return ConfigurationManager.AppSettings[key];
-    }
-}
 
 public class ConfigurationComponentBase
 {
@@ -114,18 +60,24 @@ public class AppConfig : ConfigurationComponentBase
 
 class Program
 {
-    static void Main()
+    static IConfigurationProvider LoadFromPlugin()
     {
-        var fileProvider = new FileConfigurationProvider("/config.json");
+        // load dll from Plugins folder;
+        var assemblyFile = Directory.GetFiles(@".\Plugins", "*dll").FirstOrDefault();
+        var asm = Assembly.LoadFrom(assemblyFile);
+
+        var provider = asm.GetTypes().Where(x => x.GetInterfaces().Contains(typeof(IConfigurationProvider))).FirstOrDefault();
+        return Activator.CreateInstance(provider, @".\config.json") as IConfigurationProvider;
+    }
+
+    static void Main()
+    {       
+        var fileProvider = LoadFromPlugin();
         var appConfigFile = new AppConfig(fileProvider);
 
         appConfigFile.LogLevel = 3;
+        appConfigFile.Timeout = TimeSpan.FromSeconds(10);
         Console.WriteLine($"Log Level: {appConfigFile.LogLevel}");
-
-        var configManagerProvider = new ConfigurationManagerConfigurationProvider();
-        var appConfigManager = new AppConfig(configManagerProvider);
-
-        appConfigManager.Timeout = TimeSpan.FromSeconds(10);
-        Console.WriteLine($"Timeout: {appConfigManager.Timeout.TotalSeconds} seconds");
+        Console.WriteLine($"Timeout: {appConfigFile.Timeout.TotalSeconds} seconds");
     }
 }
