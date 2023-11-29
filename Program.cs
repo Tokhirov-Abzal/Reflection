@@ -30,13 +30,13 @@ class Program
         {
             try
             {
-                var assembly = Assembly.LoadFrom(Directory.GetCurrentDirectory() + file);
+                var assembly = Assembly.LoadFrom(file);
 
                 foreach (var type in assembly.GetTypes())
                 {
                     if (type.GetInterfaces().Contains(typeof(IConfigurationProvider)))
                     {
-                        var plug = Activator.CreateInstance(type) as IConfigurationProvider;
+                        var plug = Activator.CreateInstance(type, @".\config.json") as IConfigurationProvider;
                         plugins.Add(plug);
                     }
                 }
@@ -44,7 +44,7 @@ class Program
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Error while loading plugin");
+                Console.WriteLine(ex.Message);
             }
         }
 
@@ -58,7 +58,6 @@ class Program
 
         foreach (var provider in fileProvider)
         {
-            Console.WriteLine(provider);
             var appConfigFile = new AppConfig(provider);
 
             appConfigFile.LogLevel = 3;
